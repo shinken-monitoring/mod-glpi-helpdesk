@@ -7,7 +7,7 @@ Shinken module for using Glpi helpdesk in the WebUI.
 
 For people not familiar with GLPI, it is an Open-Source CMDB. Applicable to servers, routers, printers or anything you want for that matter. It is also a help-desk tool. GLPI also integrates with tools like FusionInventory for IT inventory management.
 
-This version works with the Webservices plugin for GLPI from version 0.84, **but it needs a specific enriched version of this plugin**.
+This version works with the Webservices plugin for GLPI from version 0.84, **but it needs a specific enriched version of this plugin**. This version is available here: https://github.com/IPM-France/glpi_plugin_webservices.
 
 When this module is installed and configured properly, the Shinken WebUI adds a tab in the element view that allows to:
 
