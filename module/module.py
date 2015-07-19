@@ -126,6 +126,43 @@ class GlpiHelpdesk_broker(BaseModule):
 
         return
 
+    def getTickets(self, host_name):
+        if not host_name in self.hosts_cache or self.hosts_cache[host_name]['items_id'] is None:
+            logger.warning("[glpi-helpdesk] getTickets, host is not defined in Glpi : %s.", host_name)
+            return
+            
+        # Glpi Web service listTickets arguments :https://forge.indepnet.net/projects/webservices/wiki/GlpilistTickets
+        # Get all tickets for the current host ...
+        arg = {'session': self.session
+               , 'entity': self.hosts_cache[host_name]['entities_id']
+               , 'itemtype': self.hosts_cache[host_name]['itemtype']
+               , 'item': self.hosts_cache[host_name]['items_id']
+               , 'id2name': 1
+        }
+               
+        # Connect Glpi Web service to get a list of host tickets
+        tickets = []
+        try:
+            logger.info("[glpi-helpdesk] getTickets, arg: %s", arg)
+            records = self.ws_connection.glpi.listTickets(arg)
+            logger.debug("[glpi-helpdesk] getTickets, cr: %s", records)
+            for ticket in records:
+                # Get all ticket information ...
+                arg = {'session': self.session
+                       , 'ticket': ticket['id']
+                       , 'id2name': 1
+                }
+                
+                logger.info("[glpi-helpdesk] getTicket, arg: %s", arg)
+                ticket = self.ws_connection.glpi.getTicket(arg)
+                logger.debug("[glpi-helpdesk] getTicket, cr: %s", ticket)
+                tickets.append(ticket)
+            
+        except Exception as e:
+            logger.error("[glpi-helpdesk] error when fetching tickets list : %s" % str(e))
+            
+        return tickets
+    
     def createTicketFollowUp(self):
         # Glpi Web service listTickets arguments :https://forge.indepnet.net/projects/webservices/wiki/GlpilistTickets
         # Get all not closed tickets for the current host ...
