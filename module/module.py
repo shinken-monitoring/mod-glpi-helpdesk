@@ -61,38 +61,47 @@ class GlpiTicketsError(Exception):
 class GlpiHelpdesk_broker(BaseModule):
     def __init__(self, modconf):
         BaseModule.__init__(self, modconf)
-        
+
         self.hosts_cache = {}
-        
+
         self.uri = getattr(modconf, 'uri', 'http://localhost/glpi/plugins/webservices/xmlrpc.php')
         self.login_name = getattr(modconf, 'login_name', 'shinken')
         logger.info("[glpi-helpdesk] Glpi Web Service host:login: %s:%s", self.uri, self.login_name)
         self.login_password = getattr(modconf, 'login_password', 'shinken')
-        
+
         self.ws_connection = None
         self.is_connected = False
-        
+
     def init(self):
-        logger.info("[glpi-helpdesk] Connecting to %s" % self.uri)
-        self.ws_connection = xmlrpclib.ServerProxy(self.uri)
-        logger.info("[glpi-helpdesk] Connection opened")
-        logger.info("[glpi-helpdesk] Authentication in progress...")
-        
         self.is_connected = False
-        
+
         try:
+            logger.info("[glpi-helpdesk] Connecting to %s" % self.uri)
+            self.ws_connection = xmlrpclib.ServerProxy(self.uri)
+            logger.info("[glpi-helpdesk] Connection opened")
+
+            logger.info("[glpi-helpdesk] Authentication in progress...")
             res = self.ws_connection.glpi.doLogin( {'login_name': self.login_name, 'login_password': self.login_password} )
             self.session = res['session']
             logger.info("[glpi-helpdesk] Authenticated, session : %s", str(self.session))
-            
+
             self.is_connected = True
-            
-            self.helpdesk_configuration = self.ws_connection.kiosks.getHelpdeskConfiguration( {'session': self.session } )
-            self.helpdesk_configuration['session'] = self.session
-            logger.info("[glpi-helpdesk] helpdesk configuration: %s", self.helpdesk_configuration)
         except xmlrpclib.Fault as err:
             logger.error("[glpi-helpdesk] Authentication refused, fault code: %d (%s)", err.faultCode, err.faultString)
             raise GlpiTicketsError
+
+
+        try:
+            self.helpdesk_configuration = self.ws_connection.glpi.getHelpdeskConfiguration( {'session': self.session } )
+            self.helpdesk_configuration['session'] = self.session
+            logger.info("[glpi-helpdesk] helpdesk configuration: %s", self.helpdesk_configuration)
+        except xmlrpclib.Fault as err:
+            logger.error("[glpi-helpdesk] error when getting helpdesk configuration, fault code: %d (%s)", err.faultCode, err.faultString)
+            raise GlpiTicketsError
+
+    # Give a link for the Web UI menu
+    def get_external_ui_link(self):
+        return {'label': 'Glpi', 'uri': self.uri.replace('/plugins/webservices/xmlrpc.php', '')}
 
     # Get a brok ...
     def manage_brok(self, b):
@@ -109,11 +118,11 @@ class GlpiHelpdesk_broker(BaseModule):
                 logger.warning("[glpi-helpdesk] no custom _HOSTID and/or _ITEMTYPE and/or _ITEMSID and/or _ENTITIESID for %s", host_name)
             else:
                 logger.info("[glpi-helpdesk] initial host status : %s is %s", host_name, self.hosts_cache[host_name])
-        
+
         if b.type == 'schedule_host_downtime':
             host_name = b.data['host_name']
             logger.warning("[glpi-helpdesk] received brok for host downtime: %s", host_name)
-            
+
             if host_name in self.hosts_cache and self.hosts_cache[host_name]['items_id']:
                 start = time.time()
                 # self.record_host_check_result(b)
@@ -130,16 +139,18 @@ class GlpiHelpdesk_broker(BaseModule):
         if not host_name in self.hosts_cache or self.hosts_cache[host_name]['items_id'] is None:
             logger.warning("[glpi-helpdesk] getTickets, host is not defined in Glpi : %s.", host_name)
             return
-            
+
         # Glpi Web service listTickets arguments :https://forge.indepnet.net/projects/webservices/wiki/GlpilistTickets
         # Get all tickets for the current host ...
-        arg = {'session': self.session
-               , 'entity': self.hosts_cache[host_name]['entities_id']
-               , 'itemtype': self.hosts_cache[host_name]['itemtype']
-               , 'item': self.hosts_cache[host_name]['items_id']
-               , 'id2name': 1
+        # Do not specify entity, only itemtype/items_id to find all tickets relating to an host.
+        arg = {
+            'session': self.session
+            , 'itemtype': self.hosts_cache[host_name]['itemtype']
+            , 'item': self.hosts_cache[host_name]['items_id']
+            , 'id2name': 1
+            , 'iso8859': 1
         }
-               
+
         # Connect Glpi Web service to get a list of host tickets
         tickets = []
         try:
@@ -148,21 +159,32 @@ class GlpiHelpdesk_broker(BaseModule):
             logger.debug("[glpi-helpdesk] getTickets, cr: %s", records)
             for ticket in records:
                 # Get all ticket information ...
-                arg = {'session': self.session
-                       , 'ticket': ticket['id']
-                       , 'id2name': 1
+                arg = {
+                    'session': self.session
+                    , 'ticket': ticket['id']
+                    , 'id2name': 1
+                    , 'iso8859': 1
                 }
-                
+
                 logger.info("[glpi-helpdesk] getTicket, arg: %s", arg)
                 ticket = self.ws_connection.glpi.getTicket(arg)
-                logger.debug("[glpi-helpdesk] getTicket, cr: %s", ticket)
+                logger.info("[glpi-helpdesk] getTicket, cr: %s", ticket)
+                # for field in ticket:
+                    # logger.info("[glpi-helpdesk] getTicket, field: %s = %s", field, ticket[field])
+                    # try:
+                        # if isinstance(ticket[field], basestring):
+                            # ticket[field] = ticket[field].encode('utf8', 'ignore')
+                            # logger.info("[glpi-helpdesk] getTicket, field: %s = %s", field, ticket[field])
+                    # except UnicodeEncodeError:
+                        # pass
+
                 tickets.append(ticket)
-            
+
         except Exception as e:
             logger.error("[glpi-helpdesk] error when fetching tickets list : %s" % str(e))
-            
+
         return tickets
-    
+
     def createTicketFollowUp(self):
         # Glpi Web service listTickets arguments :https://forge.indepnet.net/projects/webservices/wiki/GlpilistTickets
         # Get all not closed tickets for the current host ...
@@ -173,24 +195,24 @@ class GlpiHelpdesk_broker(BaseModule):
                , 'id2name': 1
                , 'status': 'notclosed'
         }
-               
+
         # Connect Glpi Web service to get a list of host tickets
         try:
             ws_report = self.ws_connection.glpi.listTickets(arg)
-            
+
             for ticket in ws_report:
                 logger.debug("[glpi-helpdesk] ticket : %s" % ticket['name'])
-                
+
                 # If the ticket is a DOWN or UNREACHABLE status notification ...
                 if ticket['name'] == 'Host status : %s is DOWN' % data['host_name'] or ticket['name'] == 'Host status : %s is UNREACHABLE' % data['host_name']:
                     logger.debug("[glpi-helpdesk] found interesting ticket: %s" % ticket['id'])
-                    
+
                     # Glpi Web service addTicketFollowup arguments : https://forge.indepnet.net/projects/webservices/wiki/GlpicreateTicket
                     arg = {'session': self.session
                            , 'ticket': ticket['id']
                            , 'content': 'Host %s is still %s\n%s' % (data['host_name'], data['state'], data['output'])
                     }
-                           
+
                     # Connect Glpi Web service to add a follow-up to the ticket
                     try:
                         ws_report = self.ws_connection.glpi.addTicketFollowup(arg)
@@ -201,6 +223,12 @@ class GlpiHelpdesk_broker(BaseModule):
             logger.error("[glpi-helpdesk] error when fetching tickets list : %s" % str(e))
 
 ######################## WebUI part ############################
+
+    # Get the WS session identifier ...
+    def get_ui_session(self):
+        logger.debug("[glpi-helpdesk] get_ui_session")
+
+        return self.session
 
     # Get the helpdesk configuration ...
     def get_ui_helpdesk_configuration(self):
@@ -233,9 +261,9 @@ class GlpiHelpdesk_broker(BaseModule):
     # Request for a ticket creation
     def set_ui_ticket(self, parameters):
         logger.info("[glpi-helpdesk] request to create a ticket with %s", parameters)
-        
+
         # Glpi WS interface
-            
+
         # Connect Glpi Web service to create a ticket
         try:
             parameters['session'] = self.session
@@ -244,5 +272,5 @@ class GlpiHelpdesk_broker(BaseModule):
             return ws_report
         except Exception as e:
             logger.error("[glpi-helpdesk] error when creating a new ticket : %s" % str(e))
-            
+
         return None
