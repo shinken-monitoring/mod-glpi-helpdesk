@@ -251,7 +251,7 @@ class GlpiHelpdesk_broker(BaseModule):
         """
         Get the helpdesk tickets for a computer ...
         """
-        logger.debug("[glpi-helpdesk] get_ui_tickets, name: %s, status: %s", name, status)
+        logger.debug("[glpi-helpdesk] get_ui_tickets, name: %s, status: %s, count: %d, list: %s", name, status, count, list_only)
         hostname = None
         service = None
         if name is not None:
@@ -264,7 +264,7 @@ class GlpiHelpdesk_broker(BaseModule):
         try:
             logger.debug("[glpi-helpdesk] Fetching tickets from Glpi for host: %s, status: %s", hostname, status)
 
-            records = self.getTickets(hostname, status, count)
+            records = self.getTickets(hostname, status, count, list_only)
         except Exception:
             logger.error("[glpi-helpdesk] error when calling getTickets: %s" % traceback.format_exc())
 
