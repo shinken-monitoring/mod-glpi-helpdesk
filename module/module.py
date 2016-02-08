@@ -100,8 +100,11 @@ class GlpiHelpdesk_broker(BaseModule):
             raise GlpiTicketsError
 
     # Give a link for the Web UI menu
-    def get_external_ui_link(self):
-        return {'label': 'Glpi', 'uri': self.uri.replace('/plugins/webservices/xmlrpc.php', '')}
+    def get_external_ui_link(self, ticket_page=False):
+        if ticket_page:
+            return {'label': 'Glpi - ticket', 'uri': self.uri.replace('/plugins/webservices/xmlrpc.php', '/front/ticket.form.php?id=')}
+        else:
+            return {'label': 'Glpi', 'uri': self.uri.replace('/plugins/webservices/xmlrpc.php', '')}
 
     # Get a brok ...
     def manage_brok(self, b):
@@ -155,7 +158,7 @@ class GlpiHelpdesk_broker(BaseModule):
 
         return ticket
 
-    def getTickets(self, host_name=None, status=None, count=50, list_only=True):
+    def getTickets(self, host_name=None, status=None, count=50, list_only=True, session=None):
         if host_name:
             if not host_name in self.hosts_cache or self.hosts_cache[host_name]['items_id'] is None:
                 logger.warning("[glpi-helpdesk] getTickets, host is not defined in Glpi : %s.", host_name)
@@ -168,6 +171,9 @@ class GlpiHelpdesk_broker(BaseModule):
             , 'iso8859': 1
             , 'limit': count
         }
+        if session:
+            args['session'] = session
+
         # Get tickets for a specific host
         # Do not specify entity, only itemtype/items_id to find all tickets relating to an host.
         if host_name:
@@ -247,7 +253,7 @@ class GlpiHelpdesk_broker(BaseModule):
 
         return self.getTicket(id)
 
-    def get_ui_tickets(self, name=None, status=None, count=50, list_only=True):
+    def get_ui_tickets(self, name=None, status=None, count=50, list_only=True, session=None):
         """
         Get the helpdesk tickets for a computer ...
         """
@@ -264,7 +270,7 @@ class GlpiHelpdesk_broker(BaseModule):
         try:
             logger.debug("[glpi-helpdesk] Fetching tickets from Glpi for host: %s, status: %s", hostname, status)
 
-            records = self.getTickets(hostname, status, count, list_only)
+            records = self.getTickets(hostname, status, count, list_only, session)
         except Exception:
             logger.error("[glpi-helpdesk] error when calling getTickets: %s" % traceback.format_exc())
 

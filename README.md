@@ -16,20 +16,21 @@ When this module is installed and configured properly, the Shinken WebUI adds a 
 - create a ticket for the current host
 
 
-Requirements 
+Requirements
 =============
 
   - Compatible version of GLPI Shinken module and GLPI version
 
-      The current version needs: 
+      The current version needs:
        - plugin WebServices for GLPI
 
-       See https://forge.indepnet.net to get the plugins.
+       See https://github.com/mohierf/glpi_webservices to get the last version of the plugin.
+       This version has been modified to make it more consistent than the official one.
 
 
-      
 
-Enabling glpi-helpdesk Shinken module 
+
+Enabling glpi-helpdesk Shinken module
 ======================================
 
 To use the glpi-helpdesk module you must declare it in your WebUI configuration.
@@ -37,7 +38,7 @@ To use the glpi-helpdesk module you must declare it in your WebUI configuration.
 ```
 
   define module {
-      ... 
+      ...
 
       modules    	 ..., glpi-helpdesk
 
@@ -46,11 +47,11 @@ To use the glpi-helpdesk module you must declare it in your WebUI configuration.
 
 The module configuration is defined in the file: glpi-helpdesk.cfg.
 
-Default configuration needs to be tuned up to your Glpi configuration. 
+Default configuration needs to be tuned up to your Glpi configuration.
 
-At first, you need to activate and configure the GLPI WebServices to allow 
+At first, you need to activate and configure the GLPI WebServices to allow
 connection from your Shinken server.
-Then you set the WS URI (uri) and the login information (login_name / login_password) 
+Then you set the WS URI (uri) and the login information (login_name / login_password)
 parameters in the configuration file.
 
 
